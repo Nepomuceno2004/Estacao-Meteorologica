@@ -30,11 +30,14 @@ add_executable(${PROJECT_NAME}
         lib/aht20.c 
         lib/bmp280.c 
         lib/ssd1306.c
+        lib/buzzer.c
+        lib/matrizLed.c
         )
 
 target_link_libraries(${PROJECT_NAME} 
         pico_stdlib 
         hardware_i2c
+        hardware_pwm
         pico_cyw43_arch_lwip_threadsafe_background
         )
 

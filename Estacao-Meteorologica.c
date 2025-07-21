@@ -4,6 +4,8 @@
 #include "aht20.h"
 #include "bmp280.h"
 #include "ssd1306.h"
+#include "buzzer.h"
+#include "matrizLed.h"
 #include "font.h"
 #include <math.h>
 
@@ -20,9 +22,13 @@
 #define I2C_SDA_DISP 14
 #define I2C_SCL_DISP 15
 #define endereco 0x3C
-#define botaoA 5
 
+#define botaoA 5
 #define ledRed 13
+#define ledGreen 12
+#define WS2812_PIN 7
+#define NUM_PIXELS 25
+#define BUZZER_PIN 21
 
 #define WIFI_SSID "HILARIO_OI FIBRA 2.4"
 #define WIFI_PASS "nepomuceno"
@@ -33,11 +39,30 @@ double g_altitude = 0;
 double g_aht_temperature = 0;
 double g_aht_humidity = 0;
 
-float temp_min = 0.0, temp_max = 50.0;
-float hum_min = 0.0, hum_max = 100.0;
+double temp_min = 0.0, temp_max = 40.0;
+double hum_min = 0.0, hum_max = 80.0;
+
+double offset_temp = 0.0;
+double offset_hum = 0.0;
+double offset_pres = 0.0;
+double offset_alt = 0.0;
 
 uint8_t tela = 0;       // Variável para controlar a tela do display
 uint32_t last_time = 0; // Variável para controlar a tela do display
+
+bool leds_Normal[NUM_PIXELS] = {
+    0, 1, 1, 1, 0,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    0, 1, 1, 1, 0};
+
+bool leds_Alerta[NUM_PIXELS] = {
+    0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1,
+    0, 1, 1, 1, 0,
+    0, 0, 1, 0, 0,
+    0, 0, 0, 0, 0};
 
 const char HTML_BODY[] =
     "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Estação</title>"
@@ -45,7 +70,7 @@ const char HTML_BODY[] =
     "body{font-family:sans-serif;text-align:center;margin:0;background:#222;color:#eee}"
     "h1{color:#0cf;margin-top:20px}"
     ".d{max-width:400px;margin:10px auto;background:#333;border-radius:8px;padding:15px}"
-    ".l{font-weight:600;margin:8px 0;font-size:14px;color:#ddd}"
+    ".l{font-weight:600;margin:8px 0;font-size:18px;color:#ddd}"
     ".g{display:flex;flex-direction:column;align-items:center;gap:20px;margin:20px 0}"
     ".c{width:90%;max-width:600px;background:#fff;border-radius:8px;padding:10px}"
     "canvas{width:100%;height:240px}"
@@ -80,21 +105,46 @@ const char HTML_BODY[] =
     "window.onload=function(){sC();setInterval(u,1000);};"
     "</script></head><body>"
     "<h1>Estação Meteorológica</h1>"
-    "<div class='d'>"
-    "<p class='l'>Temp AHT20: <span id='at'>--</span></p>"
-    "<p class='l'>Umidade AHT20: <span id='ah'>--</span></p>"
-    "<p class='l'>Temp BMP280: <span id='te'>--</span></p>"
-    "<p class='l'>Pressão: <span id='pr'>--</span></p>"
-    "<p class='l'>Altitude: <span id='al'>--</span></p>"
+
+    // Bloco de navegação
+    "<div style='display: flex; gap: 20px; justify-content: center;'>"
+
+    // Bloco de leituras
+    "<div class='d' style='flex: 1; min-width: 250px; align-items: center;'>"
+    "<h2 class='l'>Temperatura AHT20: <span id='at'>--</span></h2>"
+    "<h2 class='l'>Umidade AHT20: <span id='ah'>--</span></h2>"
+    "<h2 class='l'>Temperatura BMP280: <span id='te'>--</span></h2>"
+    "<h2 class='l'>Pressão: <span id='pr'>--</span></h2>"
+    "<h2 class='l'>Altitude: <span id='al'>--</span></h2>"
     "</div>"
-    "<div class='d'>"
+
+    // Bloco de limites
+    "<div class='d' style='flex: 1; min-width: 250px; justify-content: center;'>"
+    "<h2>Definir Limites</h2>"
     "<form action='/setlimits' method='get'>"
-    "<p><input type='number' step='0.1' name='tmin' placeholder='Temp Mín'></p>"
-    "<p><input type='number' step='0.1' name='tmax' placeholder='Temp Máx'></p>"
-    "<p><input type='number' step='0.1' name='hmin' placeholder='Umid Mín'></p>"
-    "<p><input type='number' step='0.1' name='hmax' placeholder='Umid Máx'></p>"
+    "Temp Mín: <input type='number' step='0.1' name='tmin'><br><br>"
+    "Temp Máx: <input type='number' step='0.1' name='tmax'><br><br>"
+    "Umid Mín: <input type='number' step='0.1' name='hmin'><br><br>"
+    "Umid Máx: <input type='number' step='0.1' name='hmax'><br><br>"
     "<input type='submit' value='Salvar'>"
-    "</form></div>"
+    "</form>"
+    "</div>"
+
+    // Bloco de offsets
+    "<div class='d' style='flex: 1; min-width: 250px;'>"
+    "<h2>Definir Offsets</h2>"
+    "<form action='/setoffsets' method='get'>"
+    "Offset Temp: <input type='number' step='0.1' name='otemp'><br><br>"
+    "Offset Umid: <input type='number' step='0.1' name='ohum'><br><br>"
+    "Offset Pressão: <input type='number' step='0.1' name='opres'><br><br>"
+    "Offset Altitude: <input type='number' step='0.1' name='oalt'><br><br>"
+    "<input type='submit' value='Salvar'>"
+    "</form>"
+    "</div>"
+
+    "</div>"
+
+    // Gráficos
     "<div class='g'>"
     "<div class='c'><canvas id='t'></canvas></div>"
     "<div class='c'><canvas id='h'></canvas></div>"
@@ -157,35 +207,54 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
     }
     else if (strstr(req, "GET /setlimits?"))
     {
-        // Ponteiros para os valores na URL
         char *tmin_str = strstr(req, "tmin=");
         char *tmax_str = strstr(req, "tmax=");
         char *hmin_str = strstr(req, "hmin=");
         char *hmax_str = strstr(req, "hmax=");
 
-        if (tmin_str && tmax_str && hmin_str && hmax_str)
-        {
-            // Pegando os valores numéricos
-            float tmin = atof(tmin_str + 5); // pula "tmin="
-            float tmax = atof(tmax_str + 5);
-            float hmin = atof(hmin_str + 5);
-            float hmax = atof(hmax_str + 5);
+        if (tmin_str && strlen(tmin_str + 5) > 0)
+            temp_min = atof(tmin_str + 5);
 
-            // Atualiza variáveis globais
-            temp_min = tmin;
-            temp_max = tmax;
-            hum_min = hmin;
-            hum_max = hmax;
+        if (tmax_str && strlen(tmax_str + 5) > 0)
+            temp_max = atof(tmax_str + 5);
 
-            printf("Limites atualizados:\nTemp: %.1f - %.1f\nUmidade: %.1f - %.1f\n", temp_min, temp_max, hum_min, hum_max);
-        }
+        if (hmin_str && strlen(hmin_str + 5) > 0)
+            hum_min = atof(hmin_str + 5);
+
+        if (hmax_str && strlen(hmax_str + 5) > 0)
+            hum_max = atof(hmax_str + 5);
+
+        printf("Limites atualizados:\nTemp: %.1f - %.1f\nUmidade: %.1f - %.1f\n", temp_min, temp_max, hum_min, hum_max);
 
         hs->len = snprintf(hs->response, sizeof(hs->response),
                            "HTTP/1.1 302 Found\r\n"
                            "Location: /\r\n"
                            "Connection: close\r\n\r\n");
     }
+    else if (strstr(req, "GET /setoffsets?"))
+    {
+        char *otemp_str = strstr(req, "otemp=");
+        char *ohum_str = strstr(req, "ohum=");
+        char *opres_str = strstr(req, "opres=");
+        char *oalt_str = strstr(req, "oalt=");
 
+        if (otemp_str && ohum_str && opres_str && oalt_str)
+        {
+            offset_temp = atof(otemp_str + 6);
+            offset_hum = atof(ohum_str + 5);
+            offset_pres = atof(opres_str + 6);
+            offset_alt = atof(oalt_str + 5);
+
+            printf("Offsets atualizados:\nTemp: %.1f\nUmid: %.1f\nPress: %.1f\nAlt: %.1f\n",
+                   offset_temp, offset_hum, offset_pres, offset_alt);
+        }
+
+        // Redireciona de volta para página principal
+        hs->len = snprintf(hs->response, sizeof(hs->response),
+                           "HTTP/1.1 302 Found\r\n"
+                           "Location: /\r\n"
+                           "Connection: close\r\n\r\n");
+    }
     else
     {
         hs->len = snprintf(hs->response, sizeof(hs->response),
@@ -278,6 +347,14 @@ int main()
     gpio_init(ledRed);
     gpio_set_dir(ledRed, GPIO_OUT);
     gpio_put(ledRed, 0); // Desliga o LED vermelho
+
+    gpio_init(ledGreen);
+    gpio_set_dir(ledGreen, GPIO_OUT);
+    gpio_put(ledGreen, 0); // Desliga o LED vermelho
+
+    matriz_init(WS2812_PIN);
+
+    buzzer_init(BUZZER_PIN);
 
     stdio_init_all();
 
@@ -385,6 +462,13 @@ int main()
             printf("Erro na leitura do AHT10!\n\n\n");
         }
 
+        data.humidity += offset_hum;     // Aplica o offset de umidade
+        data.temperature += offset_temp; // Aplica o offset de temperatura
+
+        temperature += offset_temp; // Aplica o offset de temperatura
+        altitude += offset_alt;     // Aplica o offset de altitude
+        pressure += offset_pres;    // Aplica o offset de pressão
+
         sprintf(str_tmp1, "%.1fC", temperature / 100.0); // Converte o inteiro em string
         sprintf(str_alt, "%.0fm", altitude);             // Converte o inteiro em string
         sprintf(str_tmp2, "%.1fC", data.temperature);    // Converte o inteiro em string
@@ -422,18 +506,38 @@ int main()
 
         g_pressure = pressure / 1000.0;       // kPa
         g_temperature = temperature / 100.0;  // °C
-        g_altitude = altitude;                // m
+        g_altitude = altitude + offset_alt;   // m
         g_aht_temperature = data.temperature; // °C
         g_aht_humidity = data.humidity;       // %
 
-        if(temperature > temp_max || data.temperature > temp_max || temperature < temp_min || data.temperature < temp_min){
-            gpio_put(ledRed, 1); // Liga o LED vermelho se a temperatura estiver acima do máximo
+        if (g_temperature > temp_max || g_aht_temperature > temp_max || g_temperature < temp_min || g_aht_temperature < temp_min)
+        {
+            set_one_led(1, 0, 0, leds_Alerta); // Liga os LEDs de alerta
+            buzzer_play(BUZZER_PIN, 1000, 150);
+            sleep_ms(100);
+            buzzer_play(BUZZER_PIN, 2000, 150);
         }
-        else{
-            gpio_put(ledRed, 0); // Desliga o LED vermelho se a temperatura estiver dentro do limite
+        else
+        {
+            set_one_led(0, 1, 0, leds_Normal); // Liga os LEDs normais
+            buzzer_off(BUZZER_PIN);            // Desliga o buzzer
+        }
+        if (g_aht_humidity > hum_max || g_aht_humidity < hum_min)
+        {
+            gpio_put(ledGreen, 0); // Liga o LED verde se a umidade estiver dentro do limite
+            gpio_put(ledRed, 1);   // Liga o LED vermelho se a umidade estiver fora do limite
+            buzzer_play(BUZZER_PIN, 1000, 150);
+            sleep_ms(100);
+            buzzer_play(BUZZER_PIN, 2000, 150);
+        }
+        else
+        {
+            gpio_put(ledRed, 0);    // Desliga o LED vermelho se a umidade estiver dentro do limite
+            gpio_put(ledGreen, 1);  // Liga o LED verde se a umidade estiver dentro do limite
+            buzzer_off(BUZZER_PIN); // Desliga o buzzer
         }
 
-        sleep_ms(300);
+        sleep_ms(200);
     }
 
     cyw43_arch_deinit();
