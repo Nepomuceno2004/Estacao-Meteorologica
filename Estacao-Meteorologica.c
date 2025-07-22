@@ -525,14 +525,14 @@ int main()
 
         if (g_temperature > temp_max || g_aht_temperature > temp_max || g_temperature < temp_min || g_aht_temperature < temp_min)
         {
-            set_one_led(1, 0, 0, leds_Alerta); // Liga os LEDs de alerta
+            set_one_led(50, 0, 0, leds_Alerta); // Liga os LEDs de alerta
             buzzer_play(BUZZER_PIN, 1000, 150);
             sleep_ms(100);
             buzzer_play(BUZZER_PIN, 2000, 150);
         }
         else
         {
-            set_one_led(0, 1, 0, leds_Normal); // Liga os LEDs normais
+            set_one_led(0, 50, 0, leds_Normal); // Liga os LEDs normais
             buzzer_off(BUZZER_PIN);            // Desliga o buzzer
         }
         if (g_aht_humidity > hum_max || g_aht_humidity < hum_min)

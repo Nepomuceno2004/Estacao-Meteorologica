@@ -30,7 +30,7 @@ void buzzer_play(uint BUZZER_PIN, uint freq, uint duration_ms)
     pwm_set_wrap(slice_num, top);
 
     // Define o duty cycle
-    pwm_set_chan_level(slice_num, pwm_gpio_to_channel(BUZZER_PIN), (top * 1) / 100);
+    pwm_set_chan_level(slice_num, pwm_gpio_to_channel(BUZZER_PIN), (top * 5) / 100);
 
     // Ativa o PWM
     pwm_set_enabled(slice_num, true);
