@@ -103,29 +103,29 @@ const char HTML_BODY[] =
     "});"
     "}"
     "window.onload=function(){sC();setInterval(u,1000);};"
+
     "</script></head><body>"
     "<h1>Estação Meteorológica</h1>"
-
     // Bloco de navegação
     "<div style='display: flex; gap: 20px; justify-content: center;'>"
 
     // Bloco de leituras
     "<div class='d' style='flex: 1; min-width: 250px; align-items: center;'>"
-    "<h2 class='l'>Temperatura AHT20: <span id='at'>--</span></h2>"
-    "<h2 class='l'>Umidade AHT20: <span id='ah'>--</span></h2>"
-    "<h2 class='l'>Temperatura BMP280: <span id='te'>--</span></h2>"
-    "<h2 class='l'>Pressão: <span id='pr'>--</span></h2>"
-    "<h2 class='l'>Altitude: <span id='al'>--</span></h2>"
+    "<h2 class='l'>Temperatura AHT20: <span id='at'>--</span></h2><br>"
+    "<h2 class='l'>Umidade AHT20: <span id='ah'>--</span></h2><br>"
+    "<h2 class='l'>Temperatura BMP280: <span id='te'>--</span></h2><br>"
+    "<h2 class='l'>Pressão BMP280: <span id='pr'>--</span></h2><br>"
+    "<h2 class='l'>Altitude BMP280: <span id='al'>--</span></h2>"
     "</div>"
 
     // Bloco de limites
     "<div class='d' style='flex: 1; min-width: 250px; justify-content: center;'>"
     "<h2>Definir Limites</h2>"
     "<form action='/setlimits' method='get'>"
-    "Temp Mín: <input type='number' step='0.1' name='tmin'><br><br>"
-    "Temp Máx: <input type='number' step='0.1' name='tmax'><br><br>"
-    "Umid Mín: <input type='number' step='0.1' name='hmin'><br><br>"
-    "Umid Máx: <input type='number' step='0.1' name='hmax'><br><br>"
+    "Temp Mín: <input type='number' step='0.1' name='tmin' value='%.1f'><br><br>"
+    "Temp Máx: <input type='number' step='0.1' name='tmax' value='%.1f'><br><br>"
+    "Umid Mín: <input type='number' step='0.1' name='hmin' value='%.1f'><br><br>"
+    "Umid Máx: <input type='number' step='0.1' name='hmax' value='%.1f'><br><br>"
     "<input type='submit' value='Salvar'>"
     "</form>"
     "</div>"
@@ -134,10 +134,10 @@ const char HTML_BODY[] =
     "<div class='d' style='flex: 1; min-width: 250px;'>"
     "<h2>Definir Offsets</h2>"
     "<form action='/setoffsets' method='get'>"
-    "Offset Temp: <input type='number' step='0.1' name='otemp'><br><br>"
-    "Offset Umid: <input type='number' step='0.1' name='ohum'><br><br>"
-    "Offset Pressão: <input type='number' step='0.1' name='opres'><br><br>"
-    "Offset Altitude: <input type='number' step='0.1' name='oalt'><br><br>"
+    "Offset Temp: <input type='number' step='0.1' name='otemp' value='%.1f'><br><br>"
+    "Offset Umid: <input type='number' step='0.1' name='ohum' value='%.1f'><br><br>"
+    "Offset Pressão: <input type='number' step='0.1' name='opres' value='%.1f'><br><br>"
+    "Offset Altitude: <input type='number' step='0.1' name='oalt' value='%.1f'><br><br>"
     "<input type='submit' value='Salvar'>"
     "</form>"
     "</div>"
@@ -212,16 +212,17 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
         char *hmin_str = strstr(req, "hmin=");
         char *hmax_str = strstr(req, "hmax=");
 
-        if (tmin_str && strlen(tmin_str + 5) > 0)
+        // Atualiza somente se o parâmetro estiver presente e tiver valor
+        if (tmin_str && *(tmin_str + 5) != '\0' && *(tmin_str + 5) != '&' && atof(tmin_str + 5) != 0.0)
             temp_min = atof(tmin_str + 5);
 
-        if (tmax_str && strlen(tmax_str + 5) > 0)
+        if (tmax_str && *(tmax_str + 5) != '\0' && *(tmax_str + 5) != '&' && atof(tmax_str + 5) != 0.0)
             temp_max = atof(tmax_str + 5);
 
-        if (hmin_str && strlen(hmin_str + 5) > 0)
+        if (hmin_str && *(hmin_str + 5) != '\0' && *(hmin_str + 5) != '&' && atof(hmin_str + 5) != 0.0)
             hum_min = atof(hmin_str + 5);
 
-        if (hmax_str && strlen(hmax_str + 5) > 0)
+        if (hmax_str && *(hmax_str + 5) != '\0' && *(hmax_str + 5) != '&' && atof(hmax_str + 5) != 0.0)
             hum_max = atof(hmax_str + 5);
 
         printf("Limites atualizados:\nTemp: %.1f - %.1f\nUmidade: %.1f - %.1f\n", temp_min, temp_max, hum_min, hum_max);
@@ -238,16 +239,20 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
         char *opres_str = strstr(req, "opres=");
         char *oalt_str = strstr(req, "oalt=");
 
-        if (otemp_str && ohum_str && opres_str && oalt_str)
-        {
+        if (otemp_str && *(otemp_str + 6) != '\0' && *(otemp_str + 6) != '&')
             offset_temp = atof(otemp_str + 6);
+
+        if (ohum_str && *(ohum_str + 5) != '\0' && *(ohum_str + 5) != '&')
             offset_hum = atof(ohum_str + 5);
+
+        if (opres_str && *(opres_str + 6) != '\0' && *(opres_str + 6) != '&')
             offset_pres = atof(opres_str + 6);
+
+        if (oalt_str && *(oalt_str + 5) != '\0' && *(oalt_str + 5) != '&')
             offset_alt = atof(oalt_str + 5);
 
-            printf("Offsets atualizados:\nTemp: %.1f\nUmid: %.1f\nPress: %.1f\nAlt: %.1f\n",
-                   offset_temp, offset_hum, offset_pres, offset_alt);
-        }
+        printf("Offsets atualizados:\nTemp: %.1f\nUmid: %.1f\nPress: %.1f\nAlt: %.1f\n",
+               offset_temp, offset_hum, offset_pres, offset_alt);
 
         // Redireciona de volta para página principal
         hs->len = snprintf(hs->response, sizeof(hs->response),
@@ -257,6 +262,15 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
     }
     else
     {
+        // Cria um buffer maior para acomodar o HTML com os valores preenchidos
+        char html_with_values[sizeof(HTML_BODY) + 200];
+
+        // Preenche o HTML com os valores atuais
+        snprintf(html_with_values, sizeof(html_with_values), HTML_BODY,
+                 temp_min, temp_max, hum_min, hum_max,
+                 offset_temp, offset_hum, offset_pres, offset_alt);
+
+        // Envia a resposta HTTP com o HTML personalizado
         hs->len = snprintf(hs->response, sizeof(hs->response),
                            "HTTP/1.1 200 OK\r\n"
                            "Content-Type: text/html\r\n"
@@ -264,7 +278,7 @@ static err_t http_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t er
                            "Connection: close\r\n"
                            "\r\n"
                            "%s",
-                           (int)strlen(HTML_BODY), HTML_BODY);
+                           (int)strlen(html_with_values), html_with_values);
     }
 
     pbuf_free(p);
