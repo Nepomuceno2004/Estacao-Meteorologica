@@ -30,8 +30,8 @@
 #define NUM_PIXELS 25
 #define BUZZER_PIN 21
 
-#define WIFI_SSID "HILARIO_OI FIBRA 2.4"
-#define WIFI_PASS "nepomuceno"
+#define WIFI_SSID "SSID"
+#define WIFI_PASS "PASSWORD"
 
 double g_pressure = 0;
 double g_temperature = 0;
